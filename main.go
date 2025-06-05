@@ -18,41 +18,58 @@ Examples:
   bxcleaner         # Keeps 'main' by default, deletes other branches
   bxcleaner develop # Keeps 'develop' branch, deletes others
   bxcleaner --help  # Show this help message
-  bxcleaner -h  		# Show this help message
+  bxcleaner -h      # Show this help message
 `
 
 func main() {
-	argsWithoutProg := os.Args[1:]
-	if len(argsWithoutProg) > 0 && (argsWithoutProg[0] == "--help" || argsWithoutProg[0] == "-h") {
+	args := os.Args[1:]
+	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Print(usage)
 		return
 	}
 
 	defaultBranch := "main"
-	if len(argsWithoutProg) > 0 {
-		defaultBranch = argsWithoutProg[0]
+	if len(args) > 0 {
+		defaultBranch = args[0]
 	}
 
-	cmd := exec.Command("git", "branch", "--show-current")
-	currentBranchBytes, err := cmd.Output()
+	// Use real git commands
+	gitCmd := func(args ...string) ([]byte, error) {
+		cmd := exec.Command("git", args...)
+		return cmd.Output()
+	}
+
+	err := cleanBranches(defaultBranch, gitCmd, os.Stdout, os.Stderr)
 	if err != nil {
-		fmt.Println("error getting current branch:", err)
 		os.Exit(1)
+	}
+}
+
+func cleanBranches(defaultBranch string, gitCmd func(args ...string) ([]byte, error), stdout, stderr *os.File) error {
+	/* Get current branch
+	1. git branch --show-current (since git v 2.22)
+	2. git rev-parse --abbrev-ref HEAD
+	3. git branch | sed -n '/\* /s///p' (i think this one can done programmatically)
+	https://stackoverflow.com/questions/6245570/how-do-i-get-the-current-branch-name-in-git
+	*/
+	currentBranchBytes, err := gitCmd("branch", "--show-current")
+	if err != nil {
+		return fmt.Errorf("error getting current branch: %w", err)
 	}
 	currentBranch := strings.TrimSpace(string(currentBranchBytes))
 
 	if currentBranch != defaultBranch {
-		fmt.Printf("you need to be in chosen branch, use git checkout %s\n", defaultBranch)
-		os.Exit(1)
+		fmt.Fprintf(stderr, "you need to be in chosen branch, use git checkout %s\n", defaultBranch)
+		return fmt.Errorf("not on chosen branch")
 	}
 
-	cmd = exec.Command("git", "branch")
-	listBranchBytes, err := cmd.Output()
+	// List all branches
+	listBranchBytes, err := gitCmd("branch")
 	if err != nil {
-		fmt.Println("error getting branches:", err)
-		os.Exit(1)
+		return fmt.Errorf("error getting branches: %w", err)
 	}
 
+	// Determine which to delete
 	var branchesToDelete []string
 	scanner := bufio.NewScanner(bytes.NewReader(listBranchBytes))
 	for scanner.Scan() {
@@ -64,17 +81,18 @@ func main() {
 	}
 
 	if len(branchesToDelete) == 0 {
-		fmt.Println("no branches to delete. everything done, bye!")
-		return
+		fmt.Fprintln(stdout, "no branches to delete. clean complete, bye!")
+		return nil
 	}
 
 	for _, branch := range branchesToDelete {
-		fmt.Printf("deleting branch: %s\n", branch)
-		cmdDel := exec.Command("git", "branch", "-D", branch)
-		cmdDel.Stdout = os.Stdout
-		cmdDel.Stderr = os.Stderr
-		if err := cmdDel.Run(); err != nil {
-			fmt.Printf("failed to delete branch %s: %v\n", branch, err)
+		fmt.Fprintf(stdout, "deleting branch: %s\n", branch)
+		_, err := gitCmd("branch", "-D", branch)
+		if err != nil {
+			fmt.Fprintf(stderr, "failed to delete branch %s: %v\n", branch, err)
 		}
 	}
+
+	fmt.Fprintln(stdout, "clean complete, bye!")
+	return nil
 }
