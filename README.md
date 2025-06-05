@@ -6,7 +6,7 @@
 You can run
 
 ```
-go install github.com/pujidjayanto/bxcleaner@v1.0.0
+go install github.com/pujidjayanto/bxcleaner@latest
 ```
 
 Add $HOME/go/bin to your PATH if it isn’t already:
