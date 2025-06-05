@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,5 +44,37 @@ func main() {
 	if currentBranch != defaultBranch {
 		fmt.Printf("you need to be in chosen branch, use git checkout %s\n", defaultBranch)
 		os.Exit(1)
+	}
+
+	cmd = exec.Command("git", "branch")
+	listBranchBytes, err := cmd.Output()
+	if err != nil {
+		fmt.Println("error getting branches:", err)
+		os.Exit(1)
+	}
+
+	var branchesToDelete []string
+	scanner := bufio.NewScanner(bytes.NewReader(listBranchBytes))
+	for scanner.Scan() {
+		branch := strings.TrimSpace(scanner.Text())
+		branch = strings.TrimPrefix(branch, "* ")
+		if branch != defaultBranch && branch != currentBranch {
+			branchesToDelete = append(branchesToDelete, branch)
+		}
+	}
+
+	if len(branchesToDelete) == 0 {
+		fmt.Println("no branches to delete. everything done, bye!")
+		return
+	}
+
+	for _, branch := range branchesToDelete {
+		fmt.Printf("deleting branch: %s\n", branch)
+		cmdDel := exec.Command("git", "branch", "-D", branch)
+		cmdDel.Stdout = os.Stdout
+		cmdDel.Stderr = os.Stderr
+		if err := cmdDel.Run(); err != nil {
+			fmt.Printf("failed to delete branch %s: %v\n", branch, err)
+		}
 	}
 }
