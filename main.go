@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -45,8 +46,7 @@ func main() {
 	}
 }
 
-func cleanBranches(defaultBranch string, gitCmd func(args ...string) ([]byte, error), stdout, stderr *os.File) error {
-	/* Get current branch
+func cleanBranches(defaultBranch string, gitCmd func(args ...string) ([]byte, error), stdout, stderr io.Writer) error { /* Get current branch
 	1. git branch --show-current (since git v 2.22)
 	2. git rev-parse --abbrev-ref HEAD
 	3. git branch | sed -n '/\* /s///p' (i think this one can done programmatically)
