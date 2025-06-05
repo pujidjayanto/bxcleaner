@@ -42,11 +42,19 @@ func main() {
 
 	err := cleanBranches(defaultBranch, gitCmd, os.Stdout, os.Stderr)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func cleanBranches(defaultBranch string, gitCmd func(args ...string) ([]byte, error), stdout, stderr io.Writer) error { /* Get current branch
+func cleanBranches(defaultBranch string, gitCmd func(args ...string) ([]byte, error), stdout, stderr io.Writer) error {
+	// Check if we're in a git repository first
+	_, err := gitCmd("rev-parse", "--git-dir")
+	if err != nil {
+		return fmt.Errorf("not a git repository (or any of the parent directories)")
+	}
+
+	/* Get current branch
 	1. git branch --show-current (since git v 2.22)
 	2. git rev-parse --abbrev-ref HEAD
 	3. git branch | sed -n '/\* /s///p' (i think this one can done programmatically)
